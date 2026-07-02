@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자리 배치 프로그램 (자석 격자 및 모드 전환 완벽 수정본)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#faf6ee;
+    --board:#2f4a3d;
+    --board-dark:#233a30;
+    --wood:#dcb989;
+    --wood-dark:#b9925f;
+    --chalk:#f4d35e;
+    --ink:#2a2a28;
+    --red:#c1502e;
+    --blue:#3d6bb0;
+    --muted:#8a8378;
+    --line:#e4dccb;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Gowun Dodum', sans-serif;
+    background:var(--cream);
+    color:var(--ink);
+  }
+  .app{
+    display:grid;
+    grid-template-columns: 340px 1fr;
+    min-height:100vh;
+    transition: grid-template-columns .18s ease;
+  }
+  .app.panel-hidden{
+    grid-template-columns: 0px 1fr;
+  }
+  .app.panel-hidden .panel{
+    display:none;
+  }
+  @media (max-width: 860px){
+    .app{grid-template-columns: 1fr;}
+    .panel{grid-column: 1;}
+    .main{grid-column: 1;}
+  }
+
+  .gear-btn{
+    position:fixed;
+    top:14px;
+    left:14px;
+    z-index:50;
+    background:var(--board);
+    color:#fff;
+    border-radius:50%;
+    width:38px;
+    height:38px;
+    font-size:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.2);
+    opacity:.35;
+    border:none;
+    cursor:pointer;
+  }
+  .gear-btn:hover{opacity:1;}
+
+  /* ---------- 사이드 패널 ---------- */
+  .panel{
+    grid-column: 1;
+    background:#fff;
+    border-right:1px solid var(--line);
+    padding:22px 20px 60px;
+    overflow-y:auto;
+  }
+  .panel h1{
+    font-family:'Gaegu', sans-serif;
+    font-size:26px;
+    margin:0 0 4px;
+    color:var(--board);
+  }
+  .panel .sub{
+    font-size:12.5px;
+    color:var(--muted);
+    margin-bottom:20px;
+  }
+  .section{
+    margin-bottom:22px;
+    padding-bottom:18px;
+    border-bottom:1px dashed var(--line);
+  }
+  .section:last-child{border-bottom:none;}
+  .section h2{
+    font-size:14px;
+    margin:0 0 10px;
+    color:var(--board);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .section h2::before{
+    content:"";
+    width:6px;height:6px;
+    background:var(--chalk);
+    border:1px solid var(--wood-dark);
+    border-radius:1px;
+    display:inline-block;
+  }
+  textarea{
+    width:100%;
+    min-height:150px;
+    resize:vertical;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px 12px;
+    font-family:'Gowun Dodum', sans-serif;
+    font-size:13.5px;
+    line-height:1.6;
+    background:#fdfcf9;
+  }
+  .hint{
+    font-size:11.5px;
+    color:var(--muted);
+    margin-top:6px;
+    line-height:1.5;
+  }
+  button{
+    font-family:'Gowun Dodum', sans-serif;
+    cursor:pointer;
+    border:none;
+    border-radius:8px;
+    padding:9px 14px;
+    font-size:13px;
+    transition:transform .08s ease, opacity .15s ease;
+  }
+  button:active{transform:scale(0.97);}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-primary{
+    background:var(--board);
+    color:#fff;
+    width:100%;
+    font-size:14px;
+    padding:11px;
+  }
+  .btn-primary:hover:not(:disabled){background:var(--board-dark);}
+  .btn-ghost{
+    background:#f1ede2;
+    color:var(--ink);
+  }
+  .btn-ghost:hover{background:#e7e1d0;}
+  .btn-small{
+    padding:5px 9px;
+    font-size:12px;
+  }
+  .row{display:flex; gap:8px; align-items:center;}
+  .row + .row{margin-top:8px;}
+  .num-input{
+    width:64px;
+    padding:7px 8px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    font-size:13px;
+    text-align:center;
+  }
+  .seat-summary{
+    font-size:12.5px;
+    margin-top:8px;
+    padding:8px 10px;
+    border-radius:6px;
+    background:#f5f2e8;
+  }
+  .seat-summary.ok{color:#2f6a3d;}
+  .seat-summary.warn{color:var(--red); background:#fbe9e3;}
+
+  select{
+    flex:1;
+    padding:7px 8px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    font-size:12.5px;
+    font-family:'Gowun Dodum', sans-serif;
+    background:#fdfcf9;
+  }
+  .avoid-list{
+    margin-top:10px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .avoid-chip{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:#fbe9e3;
+    color:var(--red);
+    padding:6px 10px;
+    border-radius:6px;
+    font-size:12.5px;
+  }
+  .avoid-chip button{
+    background:none;
+    color:var(--red);
+    padding:0 4px;
+    font-size:14px;
+    font-weight:bold;
+  }
+  .avoid-chip.fixed-chip{background:#e4ecf7; color:#2c4d80;}
+  .avoid-chip.fixed-chip button{color:#2c4d80;}
+  .radio-group{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .radio-group label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    padding:7px 10px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    cursor:pointer;
+  }
+  .radio-group input{accent-color:var(--board);}
+  .radio-group label:has(input:checked){
+    border-color:var(--board);
+    background:#eef3ef;
+  }
+  .mode-toggle{
+    display:flex;
+    gap:4px;
+    margin-bottom:12px;
+    flex-wrap: wrap;
+  }
+  .mode-toggle button{
+    flex:1;
+    background:#f1ede2;
+    color:var(--ink);
+    font-size:12.5px;
+    padding:8px 4px;
+    white-space: nowrap;
+  }
+  .mode-toggle button.active{
+    background:var(--board);
+    color:#fff;
+  }
+
+  /* ---------- 메인 뷰 ---------- */
+  .main{
+    grid-column: 2;
+    padding:26px 30px 60px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .toolbar{
+    width:100%;
+    max-width:900px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:18px;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .toolbar .msg{
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .toolbar .actions{display:flex; gap:8px;}
+
+  .stage{
+    width:100%;
+    max-width:900px;
+    position: relative;
+  }
+  .board{
+    background:var(--board);
+    color:var(--chalk);
+    text-align:center;
+    font-family:'Gaegu', sans-serif;
+    font-size:20px;
+    letter-spacing:6px;
+    padding:14px;
+    border-radius:10px;
+    box-shadow: inset 0 0 0 6px var(--board-dark), 0 3px 0 var(--wood-dark);
+    margin-bottom:34px;
+  }
+  .grid-wrap{
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+    align-items:center;
+    position: relative;
+  }
+  
+  /* 자유 배치전용 캔버스 공간 (모눈종이 패턴 배경) */
+  .grid-wrap.free-layout-canvas {
+    width: 100%;
+    height: 640px;
+    background: #fdfaf2;
+    background-image: 
+      linear-gradient(to right, rgba(47, 74, 61, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(47, 74, 61, 0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    border: 2px dashed var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    display: block;
+  }
+
+  .seat-row{
+    display:flex;
+    justify-content:center;
+    gap:38px;
+    flex-wrap:wrap;
+  }
+  .desk-pair{
+    display:flex;
+    gap:4px;
+    background:var(--wood-dark);
+    padding:4px;
+    border-radius:10px;
+  }
+  .group-grid{
+    display:grid;
+    gap:22px 38px;
+    justify-content:center;
+    justify-items:center;
+  }
+  .group-box{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    background:var(--wood-dark);
+    padding:8px;
+    border-radius:12px;
+  }
+  .group-label{
+    font-family:'Gaegu', sans-serif;
+    color:#fff;
+    font-size:13px;
+    letter-spacing:1px;
+  }
+  .group-inner{
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap:4px;
+  }
+  .seat{
+    width:104px;
+    min-height:64px;
+    background:var(--wood);
+    border-radius:7px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:6px 4px;
+    position:relative;
+    cursor:grab;
+    border:2px solid transparent;
+    text-align:center;
+    user-select: none;
+  }
+  /* 자유 배치 모드 전용 */
+  .grid-wrap.free-layout-canvas .seat {
+    position: absolute;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    transition: left 0.1s ease, top 0.1s ease;
+  }
+  .grid-wrap.free-layout-canvas .seat.dragging {
+    opacity: 0.8;
+    cursor: grabbing;
+    z-index: 100;
+    transition: none;
+  }
+
+  .seat.empty{
+    background:#efe8d6;
+    color:var(--muted);
+    font-size:11px;
+    cursor:default;
+  }
+  .seat .name{
+    font-size:14px;
+    font-weight:bold;
+    word-break:keep-all;
+  }
+  .seat .gender-tag{
+    font-size:10px;
+    color:#5a4a2e;
+    margin-top:2px;
+  }
+  .seat.locked{
+    border-color:var(--red);
+  }
+  .seat.fixed{
+    border-color:var(--blue);
+    background:#e4ecf7;
+  }
+  .seat.fixed .gender-tag{color:#2c4d80;}
+  .seat.drag-over{
+    outline:3px dashed var(--board);
+    outline-offset:-3px;
+  }
+  .lock-btn{
+    position:absolute;
+    top:2px;
+    right:3px;
+    background:none;
+    border:none;
+    padding:1px 3px;
+    font-size:11px;
+    opacity:.55;
+    cursor: pointer;
+  }
+  .lock-btn.on{opacity:1;}
+  .seat.violation{
+    box-shadow: 0 0 0 2px var(--red);
+  }
+
+  footer.legend{
+    max-width:900px;
+    width:100%;
+    margin-top:26px;
+    font-size:11.5px;
+    color:var(--muted);
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+  }
+  footer.legend span{display:flex; align-items:center; gap:5px;}
+  footer.legend .dot{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  @media print{
+    .panel, .toolbar, .gear-btn{display:none !important;}
+    .app{display:block;}
+    .main{padding:0;}
+    body{background:#fff;}
+    .grid-wrap.free-layout-canvas { border: none; background: transparent; }
+  }
+</style>
+</head>
+<body>
+
+<button class="gear-btn" id="gearBtn" title="설정 화면 열기/닫기">⚙</button>
+
+<div class="app" id="appRoot">
+
+  <!-- ===================== 좌측 설정 패널 ===================== -->
+  <div class="panel">
+    <h1>자리 배치 프로그램</h1>
+    <div class="sub">명단을 입력하고 조건을 설정한 뒤, 자동 배치를 실행하세요.</div>
+
+    <div class="section">
+      <h2>① 학생 명단</h2>
+      <textarea id="rosterInput" placeholder="한 줄에 한 명씩 입력하세요.
+예)
+김민준,남
+이서연,여
+박도윤"></textarea>
+      <div class="hint">이름만 입력해도 되고, 쉼표 뒤에 남/여를 적으면 성별 조건에 사용됩니다.</div>
+      <button class="btn-ghost btn-small" id="applyRosterBtn" style="margin-top:8px; width:100%;">명단 적용</button>
+      <div id="rosterSummary" class="seat-summary" style="display:none;"></div>
+    </div>
+
+    <div class="section">
+      <h2>② 교실 배치 형태</h2>
+      <div class="mode-toggle">
+        <button type="button" id="modePairBtn" class="active">줄 · 분단 (짝꿍)</button>
+        <button type="button" id="modeGroupBtn">모둠 배치</button>
+        <button type="button" id="modeFreeBtn">자유 배치 (마우스 드래그)</button>
+      </div>
+
+      <div id="pairModeFields">
+        <div class="row">
+          <label style="font-size:13px; width:70px;">세로 줄 수</label>
+          <input type="number" id="rowsInput" class="num-input" value="5" min="1" max="12">
+        </div>
+        <div class="row">
+          <label style="font-size:13px; width:70px;">가로 분단 수</label>
+          <input type="number" id="colsInput" class="num-input" value="3" min="1" max="8">
+        </div>
+        <div class="hint">분단 1개 = 책상 2개(짝꿍 1쌍). 칠판을 바라보는 기준으로 배치됩니다.</div>
+      </div>
+
+      <div id="groupModeFields" style="display:none;">
+        <div class="row">
+          <label style="font-size:13px; width:70px;">모둠 수</label>
+          <input type="number" id="groupCountInput" class="num-input" value="7" min="1" max="16">
+        </div>
+        <div class="row">
+          <label style="font-size:13px; width:70px;">모둠 인원</label>
+          <select id="groupSizeInput" style="flex:1;">
+            <option value="4">4명 (2인용 책상 2개)</option>
+            <option value="6">6명 (2인용 책상 3개)</option>
+          </select>
+        </div>
+        <div class="row">
+          <label style="font-size:13px; width:70px;">한 줄에</label>
+          <input type="number" id="groupsPerRowInput" class="num-input" value="4" min="1" max="10">
+          <span style="font-size:12.5px;">모둠씩</span>
+        </div>
+        <div class="hint">모둠 인원을 짝수로 맞추면 남녀 성비를 균등하게 배치할 수 있어요.</div>
+      </div>
+
+      <div id="freeModeFields" style="display:none;">
+        <div class="row">
+          <label style="font-size:13px; width:80px;">총 책상 개수</label>
+          <input type="number" id="freeSeatCountInput" class="num-input" value="30" min="1" max="60">
+          <button type="button" class="btn-ghost btn-small" id="resetFreeCanvasBtn">배치판 리셋/생성</button>
+        </div>
+        <div class="hint">자유 배치 모드에서는 책상을 마우스로 드래그하여 교실 모양을 마음대로 만든 뒤 랜덤 배치를 돌릴 수 있습니다.</div>
+      </div>
+
+      <div id="seatSummary" class="seat-summary">자리 수를 계산하려면 명단을 먼저 적용하세요.</div>
+    </div>
+
+    <div class="section">
+      <h2>③ 짝 피하기</h2>
+      <div class="row">
+        <select id="avoidA"><option>명단을 먼저 적용하세요</option></select>
+        <select id="avoidB"><option>명단을 먼저 적용하세요</option></select>
+        <button class="btn-ghost btn-small" id="addAvoidBtn">추가</button>
+      </div>
+      <div class="hint">같은 분단(짝꿍) 또는 같은 모둠(자유 배치는 인접 자리)에 함께 앉지 않도록 합니다.</div>
+      <div class="avoid-list" id="avoidList"></div>
+    </div>
+
+    <div class="section">
+      <h2>④ 성별 조건</h2>
+      <div id="pairGenderFields" class="radio-group">
+        <label><input type="radio" name="pairGenderMode" value="none" checked> 상관없음</label>
+        <label><input type="radio" name="pairGenderMode" value="same"> 동성 짝꿍만</label>
+        <label><input type="radio" name="pairGenderMode" value="diff"> 이성 짝꿍만</label>
+      </div>
+      <div id="groupGenderFields" class="radio-group" style="display:none;">
+        <label><input type="radio" name="groupGenderMode" value="none" checked> 상관없음</label>
+        <label><input type="radio" name="groupGenderMode" value="balance"> <span id="balanceLabel">모둠마다 남 2 · 여 2로 맞추기</span></label>
+      </div>
+      <div id="freeGenderFields" class="radio-group" style="display:none;">
+        <div class="hint">자유 배치 모드에서는 성별/짝 피하기 조건이 단순 계산되거나 완화될 수 있습니다.</div>
+      </div>
+      <div class="hint">성별 정보가 없는 학생은 이 조건과 상관없이 배치됩니다.</div>
+    </div>
+
+    <div class="section">
+      <h2>⑤ 자리 고정 (통합반 등)</h2>
+      <div class="row">
+        <select id="fixedStudent"><option>명단을 먼저 적용하세요</option></select>
+      </div>
+      <div class="row" id="fixedPairFields">
+        <select id="fixedRow" style="flex:1;"></select>
+        <select id="fixedPair" style="flex:1;"></select>
+        <select id="fixedSide" style="flex:1;">
+          <option value="L">왼쪽</option>
+          <option value="R">오른쪽</option>
+        </select>
+      </div>
+      <div class="row" id="fixedGroupFields" style="display:none;">
+        <select id="fixedGroupNum" style="flex:1;"></select>
+        <select id="fixedSlotNum" style="flex:1;"></select>
+      </div>
+      <div class="row" id="fixedFreeFields" style="display:none;">
+        <span class="hint">자유 배치 모드에서는 자물쇠(🔒) 기능을 이용해 주세요.</span>
+      </div>
+      <button class="btn-ghost btn-small" id="addFixedBtn" style="margin-top:8px; width:100%;">📌 이 자리에 고정</button>
+      <div class="hint">고정된 학생은 다시 섞기를 해도 항상 같은 자리에 앉습니다.</div>
+      <div class="avoid-list" id="fixedList"></div>
+    </div>
+
+    <div class="section">
+      <button class="btn-primary" id="generateBtn" disabled>🎲 자리 랜덤 배치</button>
+      <div class="hint" style="margin-top:8px;">🔒 자물쇠를 누른 자리는 다시 섞어도 유지되고, 📌 고정석은 항상 유지됩니다.</div>
+    </div>
+  </div>
+
+  <!-- ===================== 메인 좌석 뷰 ===================== -->
+  <div class="main">
+    <div class="toolbar">
+      <div class="msg" id="statusMsg">왼쪽에서 명단을 입력하고 자리 배치를 실행하세요.</div>
+      <div class="actions">
+        <button class="btn-ghost btn-small" id="unlockAllBtn">잠금 전체 해제</button>
+        <button class="btn-ghost btn-small" id="reshuffleBtn" disabled>🔀 다시 섞기</button>
+        <button class="btn-ghost btn-small" id="printBtn">🖨️ 인쇄</button>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="board">칠 &nbsp; 판</div>
+      <div class="grid-wrap" id="gridWrap"></div>
+    </div>
+
+    <footer class="legend">
+      <span><span class="dot" style="background:var(--wood);"></span> 배치된 자리</span>
+      <span><span class="dot" style="background:#efe8d6; border:1px solid var(--line);"></span> 빈 자리</span>
+      <span><span class="dot" style="background:var(--red);"></span> 잠금된 자리 / 조건 미충족</span>
+      <span><span class="dot" style="background:var(--blue);"></span> 📌 고정석 (통합반 등)</span>
+      <span id="dragLegendText">드래그해서 자리를 서로 바꿀 수 있어요</span>
+    </footer>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------- 상태 ----------------
+  let students = [];         
+  let avoidPairs = [];       
+  let fixedAssignments = []; 
+  let seats = [];             
+  let rows = 5, cols = 3;             
+  let groupCount = 7, groupSize = 4;  
+  let freeSeatCount = 30;             
+  let layoutMode = 'pair';   
+
+  const SNAP_GRID_SIZE = 40; // 격자 크기
+
+  const rosterInput = document.getElementById('rosterInput');
+  const applyRosterBtn = document.getElementById('applyRosterBtn');
+  const rosterSummary = document.getElementById('rosterSummary');
+  const rowsInput = document.getElementById('rowsInput');
+  const colsInput = document.getElementById('colsInput');
+  const groupCountInput = document.getElementById('groupCountInput');
+  const groupSizeInput = document.getElementById('groupSizeInput');
+  const groupsPerRowInput = document.getElementById('groupsPerRowInput');
+  const freeSeatCountInput = document.getElementById('freeSeatCountInput');
+  const resetFreeCanvasBtn = document.getElementById('resetFreeCanvasBtn');
+  
+  const modePairBtn = document.getElementById('modePairBtn');
+  const modeGroupBtn = document.getElementById('modeGroupBtn');
+  const modeFreeBtn = document.getElementById('modeFreeBtn');
+  
+  const pairModeFields = document.getElementById('pairModeFields');
+  const groupModeFields = document.getElementById('groupModeFields');
+  const freeModeFields = document.getElementById('freeModeFields');
+  
+  const pairGenderFields = document.getElementById('pairGenderFields');
+  const groupGenderFields = document.getElementById('groupGenderFields');
+  const freeGenderFields = document.getElementById('freeGenderFields');
+  
+  const fixedPairFields = document.getElementById('fixedPairFields');
+  const fixedGroupFields = document.getElementById('fixedGroupFields');
+  const fixedFreeFields = document.getElementById('fixedFreeFields');
+
+  const balanceLabel = document.getElementById('balanceLabel');
+  const seatSummary = document.getElementById('seatSummary');
+  const avoidA = document.getElementById('avoidA');
+  const avoidB = document.getElementById('avoidB');
+  const addAvoidBtn = document.getElementById('addAvoidBtn');
+  const avoidListEl = document.getElementById('avoidList');
+  const generateBtn = document.getElementById('generateBtn');
+  const reshuffleBtn = document.getElementById('reshuffleBtn');
+  const unlockAllBtn = document.getElementById('unlockAllBtn');
+  const printBtn = document.getElementById('printBtn');
+  const statusMsg = document.getElementById('statusMsg');
+  const gridWrap = document.getElementById('gridWrap');
+  const dragLegendText = document.getElementById('dragLegendText');
+  
+  const fixedStudent = document.getElementById('fixedStudent');
+  const fixedRow = document.getElementById('fixedRow');
+  const fixedPair = document.getElementById('fixedPair');
+  const fixedSide = document.getElementById('fixedSide');
+  const fixedGroupNum = document.getElementById('fixedGroupNum');
+  const fixedSlotNum = document.getElementById('fixedSlotNum');
+  const addFixedBtn = document.getElementById('addFixedBtn');
+  const fixedListEl = document.getElementById('fixedList');
+  const gearBtn = document.getElementById('gearBtn');
+  const appRoot = document.getElementById('appRoot');
+
+  gearBtn.addEventListener('click', () => {
+    appRoot.classList.toggle('panel-hidden');
+  });
+
+  function genderLabel(g){
+    if(g === 'M') return '남';
+    if(g === 'F') return '여';
+    return '';
+  }
+  function studentGenderById(id){
+    const s = students.find(x=>x.id===id);
+    return s ? s.gender : null;
+  }
+  function nameOf(id){
+    const s = students.find(x => x.id === id);
+    return s ? s.name : '?';
+  }
+
+  // ---------------- 모드 전환 (버그 수정한 핵심 파트) ----------------
+  function setLayoutMode(mode){
+    layoutMode = mode;
+    modePairBtn.classList.toggle('active', mode==='pair');
+    modeGroupBtn.classList.toggle('active', mode==='group');
+    modeFreeBtn.classList.toggle('active', mode==='free');
+    
+    pairModeFields.style.display = mode==='pair' ? '' : 'none';
+    groupModeFields.style.display = mode==='group' ? '' : 'none';
+    freeModeFields.style.display = mode==='free' ? '' : 'none';
+    
+    pairGenderFields.style.display = mode==='pair' ? '' : 'none';
+    groupGenderFields.style.display = mode==='group' ? '' : 'none';
+    freeGenderFields.style.display = mode==='free' ? '' : 'none';
+    
+    fixedPairFields.style.display = mode==='pair' ? '' : 'none';
+    fixedGroupFields.style.display = mode==='group' ? '' : 'none';
+    fixedFreeFields.style.display = mode==='free' ? '' : 'none';
+
+    if(mode === 'free') {
+      gridWrap.classList.add('free-layout-canvas');
+      dragLegendText.textContent = "자유 배치 모드: 책상이 배경 격자(가이드라인)에 자석처럼 맞춰 정렬됩니다.";
+      if (seats.length === 0 || !seats[0].hasOwnProperty('x')) {
+        buildFreeStyleCanvas();
+      }
+    } else {
+      gridWrap.classList.remove('free-layout-canvas');
+      dragLegendText.textContent = "드래그해서 자리를 서로 바꿀 수 있어요";
+    }
+    
+    // 모드 실시간 교체 대응 데이터 리셋용 코드
+    if (students.length > 0) {
+      if(mode === 'free') {
+        buildFreeStyleCanvas();
+      } else {
+        seats = buildSeatSlots();
+        applyFixedAssignments(seats);
+      }
+      
+      if (!reshuffleBtn.disabled) {
+        const {result} = assignSeats();
+        if (result) seats = result;
+      }
+      renderGrid();
+    } else {
+      gridWrap.innerHTML = '';
+    }
+
+    updateAll();
+  }
+  modePairBtn.addEventListener('click', () => setLayoutMode('pair'));
+  modeGroupBtn.addEventListener('click', () => setLayoutMode('group'));
+  modeFreeBtn.addEventListener('click', () => setLayoutMode('free'));
+
+  groupSizeInput.addEventListener('change', () => {
+    groupSize = parseInt(groupSizeInput.value) || 4;
+    balanceLabel.textContent = `모둠마다 남 ${groupSize/2} · 여 ${groupSize/2}로 맞추기`;
+    updateAll();
+  });
+
+  resetFreeCanvasBtn.addEventListener('click', () => {
+    buildFreeStyleCanvas();
+    updateAll();
+  });
+
+  function buildFreeStyleCanvas() {
+    freeSeatCount = Math.max(1, parseInt(freeSeatCountInput.value) || 30);
+    seats = [];
+    for(let i=0; i<freeSeatCount; i++) {
+      let colIdx = i % 6;
+      let rowIdx = Math.floor(i / 6);
+      
+      let initX = 40 + (colIdx * 120);
+      let initY = 40 + (rowIdx * 120);
+      initX = Math.round(initX / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+      initY = Math.round(initY / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+
+      seats.push({
+        id: `free-${i}`,
+        groupIdx: i, 
+        slotIdx: 0,
+        studentId: null,
+        locked: false,
+        fixed: false,
+        x: initX,
+        y: initY
+      });
+    }
+    renderGrid();
+  }
+
+  // ---------------- 명단 파싱 ----------------
+  function parseRoster(){
+    const lines = rosterInput.value.split('\n').map(l => l.trim()).filter(Boolean);
+    const list = [];
+    lines.forEach((line, idx) => {
+      const parts = line.split(/[,\s]+/).filter(Boolean);
+      const name = parts[0];
+      let gender = null;
+      if(parts[1]){
+        const g = parts[1].trim();
+        if(g === '남' || g.toUpperCase() === 'M') gender = 'M';
+        else if(g === '여' || g.toUpperCase() === 'F') gender = 'F';
+      }
+      if(name) list.push({id: 's'+idx+'_'+name, name, gender});
+    });
+    return list;
+  }
+
+  applyRosterBtn.addEventListener('click', () => {
+    const list = parseRoster();
+    if(list.length === 0){
+      rosterSummary.style.display = 'block';
+      rosterSummary.className = 'seat-summary warn';
+      rosterSummary.textContent = '학생 이름을 한 줄에 한 명씩 입력해주세요.';
+      return;
+    }
+    const nameCount = {};
+    list.forEach(s => nameCount[s.name] = (nameCount[s.name]||0)+1);
+    const dups = Object.keys(nameCount).filter(n => nameCount[n] > 1);
+
+    students = list;
+    avoidPairs = [];
+    fixedAssignments = [];
+    renderAvoidList();
+    populateAvoidSelects();
+    populateFixedStudentSelect();
+    renderFixedList();
+
+    const maleCount = students.filter(s => s.gender==='M').length;
+    const femaleCount = students.filter(s => s.gender==='F').length;
+    rosterSummary.style.display = 'block';
+    if(dups.length){
+      rosterSummary.className = 'seat-summary warn';
+      rosterSummary.textContent = `⚠ 이름이 중복됩니다: ${dups.join(', ')}`;
+    } else {
+      rosterSummary.className = 'seat-summary ok';
+      rosterSummary.textContent = `총 ${students.length}명 (남 ${maleCount} · 여 ${femaleCount})`;
+    }
+    generateBtn.disabled = false;
+    
+    if(layoutMode !== 'free') {
+      seats = [];
+      gridWrap.innerHTML = '';
+    } else {
+      seats.forEach(s => s.studentId = null);
+      renderGrid();
+    }
+    
+    reshuffleBtn.disabled = true;
+    appRoot.classList.remove('panel-hidden');
+    updateAll();
+  });
+
+  // ---------------- 좌석 수 계산 ----------------
+  function totalSeatCount(){
+    if(layoutMode === 'pair'){
+      rows = Math.max(1, parseInt(rowsInput.value) || 1);
+      cols = Math.max(1, parseInt(colsInput.value) || 1);
+      return rows * cols * 2;
+    } else if(layoutMode === 'group') {
+      groupCount = Math.max(1, parseInt(groupCountInput.value) || 1);
+      groupSize = parseInt(groupSizeInput.value) || 4;
+      return groupCount * groupSize;
+    } else {
+      return Math.max(1, parseInt(freeSeatCountInput.value) || 30);
+    }
+  }
+
+  function updateSeatSummary(){
+    const total = totalSeatCount();
+    if(students.length === 0){
+      if(layoutMode === 'pair') seatSummary.textContent = `총 ${total}석 (${rows}줄 × 분단 ${cols}개).`;
+      else if(layoutMode === 'group') seatSummary.textContent = `총 ${total}석 (모둠 ${groupCount}개 × ${groupSize}명).`;
+      else seatSummary.textContent = `총 ${total}석 (자유 배치).`;
+      seatSummary.className = 'seat-summary';
+      return;
+    }
+    if(total < students.length){
+      seatSummary.className = 'seat-summary warn';
+      seatSummary.textContent = `⚠ 자리가 부족해요. 필요 ${students.length}석 / 현재 ${total}석`;
+    } else {
+      seatSummary.className = 'seat-summary ok';
+      seatSummary.textContent = `총 ${total}석 준비됨 (학생 ${students.length}명, 빈자리 ${total-students.length}석)`;
+    }
+  }
+
+  function updateAll(){
+    updateSeatSummary();
+    populateFixedSeatSelectors();
+  }
+  rowsInput.addEventListener('input', updateAll);
+  colsInput.addEventListener('input', updateAll);
+  groupCountInput.addEventListener('input', updateAll);
+  freeSeatCountInput.addEventListener('input', updateAll);
+  groupsPerRowInput.addEventListener('input', () => { if(seats.length && layoutMode !== 'free') renderGrid(); });
+
+  function populateFixedSeatSelectors(){
+    if(layoutMode==='pair'){
+      const r = Math.max(1, parseInt(rowsInput.value) || 1);
+      const c = Math.max(1, parseInt(colsInput.value) || 1);
+      fixedRow.innerHTML = '';
+      for(let i=0;i<r;i++){
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = `${i+1}줄`;
+        fixedRow.appendChild(opt);
+      }
+      fixedPair.innerHTML = '';
+      for(let i=0;i<c;i++){
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = `${i+1}분단`;
+        fixedPair.appendChild(opt);
+      }
+    } else if(layoutMode==='group') {
+      const gc = Math.max(1, parseInt(groupCountInput.value) || 1);
+      const gs = parseInt(groupSizeInput.value) || 4;
+      fixedGroupNum.innerHTML = '';
+      for(let i=0;i<gc;i++){
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = `${i+1}번 모둠`;
+        fixedGroupNum.appendChild(opt);
+      }
+      fixedSlotNum.innerHTML = '';
+      for(let i=0;i<gs;i++){
+        const opt = document.createElement('option');
+        opt.value = i; opt.textContent = `${i+1}번 자리`;
+        fixedSlotNum.appendChild(opt);
+      }
+    }
+  }
+
+  // ---------------- 짝 피하기 ----------------
+  function populateAvoidSelects(){
+    [avoidA, avoidB].forEach(sel => {
+      sel.innerHTML = '';
+      students.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        sel.appendChild(opt);
+      });
+    });
+  }
+
+  addAvoidBtn.addEventListener('click', () => {
+    if(students.length === 0) return;
+    const a = avoidA.value, b = avoidB.value;
+    if(!a || !b || a === b) {
+      statusFlash('같은 학생을 선택했거나 명단이 비어있어요.', true);
+      return;
+    }
+    const exists = avoidPairs.some(p => (p[0]===a && p[1]===b) || (p[0]===b && p[1]===a));
+    if(exists) return;
+    avoidPairs.push([a,b]);
+    renderAvoidList();
+  });
+
+  function renderAvoidList(){
+    avoidListEl.innerHTML = '';
+    avoidPairs.forEach((p, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'avoid-chip';
+      chip.innerHTML = `<span>${nameOf(p[0])} ↔ ${nameOf(p[1])}</span>`;
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = '×';
+      rmBtn.addEventListener('click', () => {
+        avoidPairs.splice(idx,1);
+        renderAvoidList();
+      });
+      chip.appendChild(rmBtn);
+      avoidListEl.appendChild(chip);
+    });
+  }
+
+  function isAvoidPair(idA, idB){
+    return avoidPairs.some(p => (p[0]===idA && p[1]===idB) || (p[0]===idB && p[1]===idA));
+  }
+
+  function getPairGenderMode(){
+    return document.querySelector('input[name="pairGenderMode"]:checked').value;
+  }
+  function getGroupGenderMode(){
+    return document.querySelector('input[name="groupGenderMode"]:checked').value;
+  }
+
+  function genderCompatible(sA, sB, mode){
+    if(mode === 'none') return true;
+    if(!sA || !sB || !sA.gender || !sB.gender) return true;
+    if(mode === 'same') return sA.gender === sB.gender;
+    if(mode === 'diff') return sA.gender !== sB.gender;
+    return true;
+  }
+
+  // ---------------- 자리 고정 ----------------
+  function populateFixedStudentSelect(){
+    fixedStudent.innerHTML = '';
+    students.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      fixedStudent.appendChild(opt);
+    });
+    populateFixedSeatSelectors();
+  }
+
+  addFixedBtn.addEventListener('click', () => {
+    if(students.length === 0) return;
+    if(layoutMode === 'free') {
+      statusFlash('자유 배치 모드에서는 자물쇠(🔒) 기능을 직접 눌러 고정해 주세요.', false);
+      return;
+    }
+    const studentId = fixedStudent.value;
+    let groupIdx, slotIdx, label;
+    if(layoutMode==='pair'){
+      const row = parseInt(fixedRow.value), pairIdx = parseInt(fixedPair.value), side = fixedSide.value;
+      if(isNaN(row) || isNaN(pairIdx)) { statusFlash('고정할 자리를 선택하세요.', true); return; }
+      groupIdx = row*cols + pairIdx;
+      slotIdx = side==='L' ? 0 : 1;
+      label = `${row+1}줄 ${pairIdx+1}분단 ${side==='L'?'왼쪽':'오른쪽'}`;
+    } else {
+      groupIdx = parseInt(fixedGroupNum.value);
+      slotIdx = parseInt(fixedSlotNum.value);
+      if(isNaN(groupIdx) || isNaN(slotIdx)) { statusFlash('고정할 자리를 선택하세요.', true); return; }
+      label = `${groupIdx+1}번 모둠 ${slotIdx+1}번 자리`;
+    }
+    if(!studentId){ statusFlash('고정할 학생을 먼저 선택하세요.', true); return; }
+
+    const seatTaken = fixedAssignments.find(f => f.groupIdx===groupIdx && f.slotIdx===slotIdx && f.studentId!==studentId);
+    fixedAssignments = fixedAssignments.filter(f => f.studentId !== studentId);
+    if(seatTaken){
+      fixedAssignments = fixedAssignments.filter(f => !(f.groupIdx===groupIdx && f.slotIdx===slotIdx));
+    }
+    fixedAssignments.push({studentId, groupIdx, slotIdx, label});
+    renderFixedList();
+  });
+
+  function renderFixedList(){
+    fixedListEl.innerHTML = '';
+    fixedAssignments.forEach((f, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'avoid-chip fixed-chip';
+      chip.innerHTML = `<span>📌 ${nameOf(f.studentId)} → ${f.label}</span>`;
+      const rmBtn = document.createElement('button');
+      rmBtn.textContent = '×';
+      rmBtn.addEventListener('click', () => {
+        fixedAssignments.splice(idx,1);
+        renderFixedList();
+        const seat = seats.find(s => s.groupIdx===f.groupIdx && s.slotIdx===f.slotIdx);
+        if(seat && seat.fixed && seat.studentId === f.studentId){
+          seat.fixed = false;
+          seat.locked = false;
+          renderGrid();
+        }
+      });
+      chip.appendChild(rmBtn);
+      fixedListEl.appendChild(chip);
+    });
+  }
+
+  function applyFixedAssignments(slots){
+    if (layoutMode === 'free') return slots;
+    const seatKeys = new Set(slots.map(s => s.groupIdx+'-'+s.slotIdx));
+    fixedAssignments.forEach(f => {
+      if(!seatKeys.has(f.groupIdx+'-'+f.slotIdx)) return;
+      const seat = slots.find(s => s.groupIdx===f.groupIdx && s.slotIdx===f.slotIdx);
+      if(seat){
+        seat.studentId = f.studentId;
+        seat.locked = true;
+        seat.fixed = true;
+      }
+    });
+    return slots;
+  }
+
+  // ---------------- 좌석 슬롯 생성 ----------------
+  function buildSeatSlots(){
+    if(layoutMode === 'free') {
+      return seats;
+    }
+    const slots = [];
+    if(layoutMode === 'pair'){
+      for(let r=0; r<rows; r++){
+        for(let p=0; p<cols; p++){
+          const gid = r*cols + p;
+          slots.push({id:`g${gid}-0`, groupIdx:gid, slotIdx:0, row:r, pairIdx:p, side:'L', studentId:null, locked:false, fixed:false});
+          slots.push({id:`g${gid}-1`, groupIdx:gid, slotIdx:1, row:r, pairIdx:p, side:'R', studentId:null, locked:false, fixed:false});
+        }
+      }
+    } else {
+      for(let g=0; g<groupCount; g++){
+        for(let si=0; si<groupSize; si++){
+          slots.push({id:`g${g}-${si}`, groupIdx:g, slotIdx:si, studentId:null, locked:false, fixed:false});
+        }
+      }
+    }
+    return slots;
+  }
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+
+  function fillGroup(groupSlots, pool, respectAvoid, genderMode){
+    const emptySlots = shuffle(groupSlots.filter(s => !s.locked));
+    if(emptySlots.length === 0) return true;
+
+    if(genderMode === 'balance'){
+      const size = groupSlots.length;
+      const half = size / 2;
+      let mCount = groupSlots.filter(s => s.studentId && studentGenderById(s.studentId)==='M').length;
+      let fCount = groupSlots.filter(s => s.studentId && studentGenderById(s.studentId)==='F').length;
+      let neededM = half - mCount, neededF = half - fCount;
+      if(neededM < 0 || neededF < 0) return false;
+      const plan = [];
+      for(let i=0;i<neededM;i++) plan.push('M');
+      for(let i=0;i<neededF;i++) plan.push('F');
+      while(plan.length < emptySlots.length) plan.push(null);
+      const shuffledPlan = shuffle(plan);
+      for(let i=0; i<emptySlots.length; i++){
+        if(pool.length === 0) break;
+        const wantGender = shuffledPlan[i];
+        const members = groupSlots.filter(s => s.studentId).map(s => s.studentId);
+        const okAvoid = st => !respectAvoid || members.every(m => !isAvoidPair(m, st.id));
+        let candidates = pool.filter(st => okAvoid(st) && (!wantGender || !st.gender || st.gender===wantGender));
+        let exact = candidates.filter(st => !wantGender || st.gender===wantGender);
+        let list = exact.length ? exact : candidates;
+        if(list.length === 0) return false;
+        const chosen = list[Math.floor(Math.random()*list.length)];
+        emptySlots[i].studentId = chosen.id;
+        const idx = pool.findIndex(p => p.id === chosen.id);
+        if(idx>-1) pool.splice(idx,1);
+      }
+      return true;
+    } else {
+      for(let i=0; i<emptySlots.length; i++){
+        if(pool.length === 0) break;
+        const members = groupSlots.filter(s => s.studentId).map(s => s.studentId);
+        const candidates = pool.filter(st => {
+          if(respectAvoid && members.some(m => isAvoidPair(m, st.id))) return false;
+          if(genderMode !== 'none'){
+            for(const m of members){
+              const sM = students.find(x=>x.id===m);
+              if(!genderCompatible(sM, st, genderMode)) return false;
+            }
+          }
+          return true;
+        });
+        if(candidates.length === 0) return false;
+        const chosen = candidates[Math.floor(Math.random()*candidates.length)];
+        emptySlots[i].studentId = chosen.id;
+        const idx = pool.findIndex(p => p.id === chosen.id);
+        if(idx>-1) pool.splice(idx,1);
+      }
+      return true;
+    }
+  }
+
+  function tryAssign(existingSeats, respectAvoid, respectGender){
+    const slots = existingSeats.map(s => ({...s}));
+    slots.forEach(s => { if(!s.locked) s.studentId = null; });
+    const lockedStudentIds = new Set(slots.filter(s=>s.locked && s.studentId).map(s=>s.studentId));
+    let pool = shuffle(students.filter(s => !lockedStudentIds.has(s.id)));
+    
+    if(layoutMode === 'free') {
+      const unlockedSlots = slots.filter(s => !s.locked);
+      const shuffledSlots = shuffle(unlockedSlots);
+      for(let i=0; i<shuffledSlots.length; i++) {
+        if(pool.length === 0) break;
+        const currentSlot = slots.find(s => s.id === shuffledSlots[i].id);
+        currentSlot.studentId = pool.pop().id;
+      }
+      return slots;
+    }
+
+    const genderMode = respectGender ? (layoutMode==='pair' ? getPairGenderMode() : getGroupGenderMode()) : 'none';
+    const groupIds = shuffle([...new Set(slots.map(s => s.groupIdx))]);
+    for(const gid of groupIds){
+      const groupSlots = slots.filter(s => s.groupIdx === gid);
+      const ok = fillGroup(groupSlots, pool, respectAvoid, genderMode);
+      if(!ok) return null;
+    }
+    if(pool.length > 0) return null;
+    return slots;
+  }
+
+  function assignSeats(){
+    let result = null;
+    if (layoutMode === 'free') {
+      result = tryAssign(seats, false, false);
+      return {result, relaxedGender: false, relaxedAvoid: false};
+    }
+    
+    for(let i=0;i<300 && !result;i++){
+      result = tryAssign(seats, true, true);
+    }
+    let relaxedGender = false, relaxedAvoid = false;
+    if(!result){
+      for(let i=0;i<300 && !result;i++){
+        result = tryAssign(seats, true, false);
+      }
+      if(result) relaxedGender = true;
+    }
+    if(!result){
+      for(let i=0;i<300 && !result;i++){
+        result = tryAssign(seats, false, false);
+      }
+      if(result){ relaxedGender = true; relaxedAvoid = true; }
+    }
+    return {result, relaxedGender, relaxedAvoid};
+  }
+
+  function statusFlash(msg, isWarn){
+    statusMsg.textContent = msg;
+    statusMsg.style.color = isWarn ? 'var(--red)' : 'var(--muted)';
+  }
+
+  generateBtn.addEventListener('click', () => {
+    updateSeatSummary();
+    const total = totalSeatCount();
+    if(total < students.length){
+      statusFlash(`자리가 부족합니다. 필요 ${students.length}석 / 현재 ${total}석`, true);
+      return;
+    }
+    
+    if(layoutMode !== 'free') {
+      seats = buildSeatSlots();
+      applyFixedAssignments(seats);
+    }
+    
+    const {result, relaxedGender, relaxedAvoid} = assignSeats();
+    if(!result){
+      statusFlash('조건을 만족하는 배치를 찾지 못했습니다.', true);
+      return;
+    }
+    seats = result;
+    renderGrid();
+    reshuffleBtn.disabled = false;
+    appRoot.classList.add('panel-hidden');
+    if(layoutMode === 'free') {
+      statusFlash('자유 배치가 완료되었습니다!', false);
+    } else if(relaxedAvoid){
+      statusFlash('⚠ 일부 "짝 피하기" 조건을 지키지 못했습니다.', true);
+    } else if(relaxedGender){
+      statusFlash('⚠ 일부 자리는 성별 조건을 지키지 못했습니다.', true);
+    } else {
+      statusFlash('배치 완료! 자리를 드래그해서 바꾸거나 🔒로 고정할 수 있어요.', false);
+    }
+  });
+
+  reshuffleBtn.addEventListener('click', () => {
+    const {result, relaxedGender, relaxedAvoid} = assignSeats();
+    if(!result){
+      statusFlash('조건을 만족하는 배치를 찾지 못했습니다.', true);
+      return;
+    }
+    seats = result;
+    renderGrid();
+    statusFlash('다시 배치했어요. 🔒 고정된 자리는 유지됩니다.', false);
+  });
+
+  unlockAllBtn.addEventListener('click', () => {
+    seats.forEach(s => { if(!s.fixed) s.locked = false; });
+    renderGrid();
+    statusFlash('일반 잠금을 모두 해제했어요.', false);
+  });
+
+  printBtn.addEventListener('click', () => window.print());
+
+  // ---------------- 렌더링 및 드래그앤드롭 ----------------
+  function seatViolates(slot){
+    if(!slot.studentId) return false;
+    if(layoutMode === 'free') {
+      const mates = seats.filter(s => s.id !== slot.id && s.studentId);
+      for(const m of mates) {
+        const dist = Math.hypot(slot.x - m.x, slot.y - m.y);
+        if(dist < 130) {
+          if(isAvoidPair(slot.studentId, m.studentId)) return true;
+        }
+      }
+      return false;
+    }
+    
+    const mates = seats.filter(s => s.groupIdx===slot.groupIdx && s.id!==slot.id && s.studentId);
+    for(const m of mates){
+      if(isAvoidPair(slot.studentId, m.studentId)) return true;
+    }
+    if(layoutMode === 'pair'){
+      const mode = getPairGenderMode();
+      const sA = students.find(s=>s.id===slot.studentId);
+      for(const m of mates){
+        const sB = students.find(s=>s.id===m.studentId);
+        if(!genderCompatible(sA, sB, mode)) return true;
+      }
+    } else if(getGroupGenderMode() === 'balance'){
+      const groupSeats = seats.filter(s => s.groupIdx === slot.groupIdx);
+      const filled = groupSeats.filter(s => s.studentId);
+      if(filled.length === groupSeats.length){
+        const half = groupSeats.length / 2;
+        const mCount = filled.filter(s => studentGenderById(s.studentId)==='M').length;
+        const fCount = filled.filter(s => studentGenderById(s.studentId)==='F').length;
+        if(mCount !== half || fCount !== half) return true;
+      }
+    }
+    return false;
+  }
+
+  let dragSourceId = null;
+
+  function renderGrid(){
+    gridWrap.innerHTML = '';
+    if(layoutMode === 'pair'){
+      for(let r=0; r<rows; r++){
+        const rowEl = document.createElement('div');
+        rowEl.className = 'seat-row';
+        for(let p=0; p<cols; p++){
+          const pairEl = document.createElement('div');
+          pairEl.className = 'desk-pair';
+          ['L','R'].forEach(side => {
+            const slot = seats.find(s => s.row===r && s.pairIdx===p && s.side===side);
+            if (slot) pairEl.appendChild(renderSeat(slot));
+          });
+          rowEl.appendChild(pairEl);
+        }
+        gridWrap.appendChild(rowEl);
+      }
+    } else if(layoutMode === 'group') {
+      const perRow = Math.max(1, parseInt(groupsPerRowInput.value) || 4);
+      const gridEl = document.createElement('div');
+      gridEl.className = 'group-grid';
+      gridEl.style.gridTemplateColumns = `repeat(${perRow}, auto)`;
+      for(let g=0; g<groupCount; g++){
+        const groupBox = document.createElement('div');
+        groupBox.className = 'group-box';
+        const label = document.createElement('div');
+        label.className = 'group-label';
+        label.textContent = `모둠 ${g+1}`;
+        groupBox.appendChild(label);
+        const inner = document.createElement('div');
+        inner.className = 'group-inner';
+        for(let si=0; si<groupSize; si++){
+          const slot = seats.find(s => s.groupIdx===g && s.slotIdx===si);
+          if (slot) inner.appendChild(renderSeat(slot));
+        }
+        groupBox.appendChild(inner);
+        gridEl.appendChild(groupBox);
+      }
+      gridWrap.appendChild(gridEl);
+    } else {
+      seats.forEach(slot => {
+        const seatEl = renderSeat(slot);
+        seatEl.style.left = slot.x + 'px';
+        seatEl.style.top = slot.y + 'px';
+        gridWrap.appendChild(seatEl);
+      });
+    }
+  }
+
+  function renderSeat(slot){
+    const div = document.createElement('div');
+    const student = slot.studentId ? students.find(s=>s.id===slot.studentId) : null;
+    div.className = 'seat' + (student ? '' : ' empty') + (slot.fixed ? ' fixed' : (slot.locked ? ' locked' : '')) + (seatViolates(slot) ? ' violation' : '');
+    div.dataset.seatId = slot.id;
+
+    if(student){
+      const nameEl = document.createElement('div');
+      nameEl.className = 'name';
+      nameEl.textContent = student.name;
+      div.appendChild(nameEl);
+      if(student.gender){
+        const g = document.createElement('div');
+        g.className = 'gender-tag';
+        g.textContent = genderLabel(student.gender);
+        div.appendChild(g);
+      }
+      const lockBtn = document.createElement('button');
+      if(slot.fixed){
+        lockBtn.className = 'lock-btn on';
+        lockBtn.textContent = '📌';
+        lockBtn.title = '고정석';
+        lockBtn.style.cursor = 'default';
+      } else {
+        lockBtn.className = 'lock-btn' + (slot.locked ? ' on' : '');
+        lockBtn.textContent = slot.locked ? '🔒' : '🔓';
+        lockBtn.title = slot.locked ? '잠금 해제' : '이 자리 잠그기';
+        lockBtn.addEventListener('mousedown', (e) => e.stopPropagation()); 
+        lockBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          slot.locked = !slot.locked;
+          renderGrid();
+        });
+      }
+      div.appendChild(lockBtn);
+    } else {
+      div.textContent = '빈 자리';
+    }
+
+    if(layoutMode === 'free') {
+      div.draggable = false;
+      
+      div.addEventListener('mousedown', (e) => {
+        if(e.target.tagName === 'BUTTON') return;
+        
+        div.classList.add('dragging');
+        const rect = gridWrap.getBoundingClientRect();
+        const shiftX = e.clientX - div.getBoundingClientRect().left;
+        const shiftY = e.clientY - div.getBoundingClientRect().top;
+
+        let currentX = slot.x;
+        let currentY = slot.y;
+
+        function onMouseMove(event) {
+          let newX = event.clientX - rect.left - shiftX;
+          let newY = event.clientY - rect.top - shiftY;
+
+          newX = Math.max(0, Math.min(newX, rect.width - div.offsetWidth));
+          newY = Math.max(0, Math.min(newY, rect.height - div.offsetHeight));
+
+          currentX = newX;
+          currentY = newY;
+          
+          div.style.left = newX + 'px';
+          div.style.top = newY + 'px';
+        }
+
+        document.addEventListener('mousemove', onMouseMove);
+
+        function onMouseUp() {
+          document.removeEventListener('mousemove', onMouseMove);
+          div.classList.remove('dragging');
+
+          const snappedX = Math.round(currentX / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+          const snappedY = Math.round(currentY / SNAP_GRID_SIZE) * SNAP_GRID_SIZE;
+
+          slot.x = Math.max(0, Math.min(snappedX, rect.width - div.offsetWidth));
+          slot.y = Math.max(0, Math.min(snappedY, rect.height - div.offsetHeight));
+          
+          renderGrid();
+        }
+
+        document.addEventListener('mouseup', onMouseUp, {once: true});
+      });
+      
+    } else {
+      div.draggable = true;
+      div.addEventListener('dragstart', (e) => {
+        dragSourceId = slot.id;
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      div.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        div.classList.add('drag-over');
+      });
+      div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+      div.addEventListener('drop', (e) => {
+        e.preventDefault();
+        div.classList.remove('drag-over');
+        if(!dragSourceId || dragSourceId === slot.id) return;
+        const src = seats.find(s => s.id === dragSourceId);
+        const dst = slot;
+        if(src.fixed || dst.fixed){
+          statusFlash('📌 고정석은 이동할 수 없어요.', true);
+          return;
+        }
+        if(src.locked || dst.locked){
+          statusFlash('🔒 잠긴 자리는 이동할 수 없어요.', true);
+          return;
+        }
+        const tmp = src.studentId;
+        src.studentId = dst.studentId;
+        dst.studentId = tmp;
+        dragSourceId = null;
+        renderGrid();
+        statusFlash('자리를 바꿨어요.', false);
+      });
+    }
+
+    return div;
+  }
+
+  // 초기화
+  updateAll();
+})();
+</script>
+</body>
+</html>
